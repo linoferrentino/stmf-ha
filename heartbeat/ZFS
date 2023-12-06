@@ -135,19 +135,26 @@ zpool_export () {
         # Please note that this may fail with a "busy" error if there are
         # other kernel subsystems accessing the pool (e.g. SCSI targets).
         # Always make sure the pool export is last in your failover logic.
-        if zpool export -f "$OCF_RESKEY_pool" ; then
-            debug_log "export successful"
-            if [ -x "${HELPERS_DIR}/zfs-helper" ]; then
-                debug_log "post-export: starting"
-                "${HELPERS_DIR}/zfs-helper" post-export "$OCF_RESKEY_pool"
-                debug_log "post-export: done"
-            fi
-            return $OCF_SUCCESS
-	else
-            debug_log "export failed"
-            return $OCF_ERR_GENERIC
+	local rc;
+  	while true; do
+	zpool export -f "$OCF_RESKEY_pool" > /dev/null ; rc=$?
+	if [ ${rc} -eq 0 ]; then
+
+		ocf_log info "${OCF_RESKEY_pool}::Stop: done."
+		if [ -x "${HELPERS_DIR}/zfs-helper" ]; then
+                  debug_log "post-export: starting"
+                  "${HELPERS_DIR}/zfs-helper" post-export "$OCF_RESKEY_pool"
+                  debug_log "post-export: done"
+                fi
+                return $OCF_SUCCESS
+
 	fi
+	ocf_log info "${OCF_RESKEY_pool}::Stop: pending. ${rc}"
+	sleep 2
+	done
+        
     fi
+    return $OCF_ERR_GENERIC
 }
 
 # Monitors the health of a ZFS pool resource. Please note that this only
